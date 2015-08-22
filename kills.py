@@ -1,50 +1,109 @@
-__author__ = 'FrancisScreene'
+__author__ = 'Francis Screene'
 
 import time
-import os
 
 from slackclient import SlackClient
 import requests
 
 
-def connect_and_send(channelname, message):
+def run():
     config = dict()
     with open('api.conf') as conf:
-        lines = conf.read()
+        lines = conf.read().split('\n')
         for line in lines:
             sp = line.split('=')
+            print sp
             config[sp[0]] = sp[1]
 
-    sc = SlackClient(config['apiToken'])
+    sc = SlackClient(config['api_token'])
+    threshold = config['threshold']
+    duration = config['duration']
+    exclude = config['exclude'].split(';')
+    channel_name = config['channel_name']
+    corp_name = config['corp_name']
+    corp_id = config['corp_id']
+    modifiers = config['modifiers']
+    user_agent = config['user_agent']
 
-    for i in range(0, 5):
-        if sc.rtm_connect():
-            id = str(sc.server.channels.find(channelname)).split("\n")[0].split(" : ")[1]
-            sc.rtm_send_message(id, message)
-            break
+    kills = get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent)
+    if len(kills) > 0:
+        message = assemble_message(kills, corp_name)
+
+        for i in range(0, 5):
+            if sc.rtm_connect():
+                id = str(sc.server.channels.find(channel_name)).split("\n")[0].split(" : ")[1]
+                sc.rtm_send_message(id, message)
+                break
+            else:
+                print "Connection failed (" + i + "), retrying in 1 second..."
+                time.sleep(1)
+
+
+def get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent):
+    cache = cache_ids()
+    headers = {'User-Agent': 'Killmail Bot, Maintainer: ' + user_agent,
+               'accept-encoding': 'gzip'}
+    request_url = ('https://zkillboard.com/api/corporationID/%s/pastSeconds/%s/kills/' + modifiers) % (corp_id, duration)
+    request = requests.get(request_url, headers=headers)
+    jsonkills = request.json()
+    worthkills = filter((lambda m: m['zkb']['totalValue'] > float(threshold)), jsonkills)
+
+    kills = []
+
+    for kill in worthkills:
+        # Get killer and number of other involved people
+        killer = ''
+        involved = 0
+        for attacker in kill['attackers']:
+            if attacker['finalBlow']:
+                killer = str(attacker['characterName'])
+            else:
+                involved += 1
+
+        # Get worth
+        worth = kill['zkb']['totalValue']
+
+        # Get Corporation
+        corp = str(kill['victim']['corporationName'])
+
+        # get ship
+        ship = cache[str(kill['victim']['shipTypeID'])]
+
+        is_not_excluded = True
+
+        for ex in exclude:
+            if ex in ship:
+                is_not_excluded = False
+                break
+
+        if is_not_excluded:
+            kills.append((killer, ship, corp, worth, involved))
+
+    return kills
+
+
+def assemble_message(kills, corp_name):
+    message = '%s killed something, specifically, ' % corp_name
+    count = 0
+    for kill in kills:
+        message += '%s killed a %s belonging to %s worth %s ISK with %s other people' % kill
+        if count < len(kills) - 1:
+            message += ', '
         else:
-            print "Connection failed (" + i + "), retrying in 1 second..."
-            time.sleep(1)
+            message += ' and '
+    message = message[:-5] + '.'
+    return message
 
 
-# connectAndSend("bottestchannel", "<!channel> Test Message Please Ignore, I am just a menial machine")
-
-def get_kills():
-    headers = {'User-Agent': 'Adhocracy Killmail Bot, Maintainer: Francis (fscreene@icloud.com', 'accept-encoding': 'gzip'}
-    request = requests.get('https://zkillboard.com/api/w-space/corporationID/1267072316/pastSeconds/3600', headers=headers)
-
-def run():
-
-        path = os.getcwd() + "/python/SlackAlertBot/"
-        stamps = open(path + "cache.txt")
-        for line in stamps:
-            st.append(line)
-        stamps.close()
-        if (timestamp + "\n") not in st:
-            connectAndSend("alerts", "<!channel>: " + "\n".join(msg.get_payload(decode=True).split("\n")[0:-3]))
-            f = open(path + "cache.txt", 'a')
-            f.write(timestamp + "\n")
-            f.close()
+def cache_ids():
+    f = open('ids')
+    lines = f.read().split('\r')
+    cache = dict()
+    for line in lines:
+        curr = line.split('\t')
+        if len(curr) > 2:
+            cache[curr[0]] = curr[2]
+    return cache
 
 
 run()
