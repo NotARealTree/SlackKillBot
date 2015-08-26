@@ -12,8 +12,8 @@ def run():
         lines = conf.read().split('\n')
         for line in lines:
             sp = line.split('=')
-            print sp
-            config[sp[0]] = sp[1]
+	    if len(sp) > 1:
+                config[sp[0]] = sp[1]
 
     sc = SlackClient(config['api_token'])
     threshold = config['threshold']
