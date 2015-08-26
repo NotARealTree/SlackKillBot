@@ -61,7 +61,7 @@ def get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent):
                 involved += 1
 
         # Get worth
-        worth = kill['zkb']['totalValue']
+        worth = value_to_readable(kill['zkb']['totalValue'])
 
         # Get Corporation
         corp = str(kill['victim']['corporationName'])
@@ -82,15 +82,26 @@ def get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent):
     return kills
 
 
+def value_to_readable(value):
+    value = str(value).split('.')[0]
+    if len(value) < 10:
+        return value[:-6] + 'M'
+    else:
+        dec = value[-9:-7]
+        bill = value[:-9]
+        return '%s.%sB' % (bill, dec)
+
+
 def assemble_message(kills, corp_name):
     message = '%s killed something, specifically, ' % corp_name
     count = 0
     for kill in kills:
         message += '%s killed a %s belonging to %s worth %s ISK with %s other people' % kill
-        if count < len(kills) - 1:
+        if count < len(kills) - 2:
             message += ', '
         else:
             message += ' and '
+        count += 1
     message = message[:-5] + '.'
     return message
 
