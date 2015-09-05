@@ -14,7 +14,7 @@ def run():
         for line in lines:
             sp = line.split('=')
 	    if len(sp) > 1:
-                config[sp[0]] = sp[1]
+             config[sp[0]] = sp[1]
 
     sc = SlackClient(config['api_token'])
     threshold = config['threshold']
@@ -61,6 +61,9 @@ def get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent):
             else:
                 involved += 1
 
+        # Get link
+        link = 'https://zkillboard.com/kill/%d/' % kill['killID']
+
         # Get worth
         worth = value_to_readable(kill['zkb']['totalValue'])
 
@@ -78,7 +81,7 @@ def get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent):
                 break
 
         if is_not_excluded:
-            kills.append((killer, ship, corp, worth, involved))
+            kills.append((killer, ship, corp, worth, involved, link))
 
     return kills
 
@@ -94,10 +97,10 @@ def value_to_readable(value):
 
 
 def assemble_message(kills, corp_name):
-    message = '%s killed something, specifically, ' % corp_name
+    message = '%s killed stuff, specifically, ' % corp_name
     count = 0
     for kill in kills:
-        message += '%s killed a %s belonging to %s worth %s ISK with %s other people' % kill
+        message += '%s killed a %s belonging to %s worth %s ISK with %s other people (%s)' % kill
         if count < len(kills) - 2:
             message += ', '
         else:
