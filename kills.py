@@ -1,6 +1,7 @@
 __author__ = 'Francis Screene'
 
 import time
+import os
 
 from slackclient import SlackClient
 import requests
@@ -117,4 +118,5 @@ def cache_ids():
     return cache
 
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 run()
