@@ -2,20 +2,14 @@ __author__ = 'Francis Screene'
 
 import time
 import os
+import json
 
 from slackclient import SlackClient
 import requests
 
 
 def run():
-    config = dict()
-    with open('api.conf') as conf:
-        lines = conf.read().split('\n')
-        for line in lines:
-            sp = line.split('=')
-	    if len(sp) > 1:
-             config[sp[0]] = sp[1]
-
+    config = load_config()
     sc = SlackClient(config['api_token'])
     threshold = config['threshold']
     duration = config['duration']
@@ -26,7 +20,9 @@ def run():
     modifiers = config['modifiers']
     user_agent = config['user_agent']
 
-    kills = get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent)
+    ids = load_ids()
+
+    kills = get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent, ids)
     if len(kills) > 0:
         message = assemble_message(kills, corp_name)
 
@@ -38,20 +34,50 @@ def run():
             else:
                 print "Connection failed (" + i + "), retrying in 1 second..."
                 time.sleep(1)
+    save_ids(ids)
 
 
-def get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent):
+def load_config():
+    config = dict()
+    with open('api.conf') as conf:
+        lines = conf.read().split('\n')
+        for line in lines:
+            sp = line.split('=')
+            if len(sp) > 1:
+                config[sp[0]] = sp[1]
+    return config
+
+
+def load_ids():
+    with open('ids.json') as jsonfile:
+        contents = jsonfile.read()
+        jsonfile.close()
+    return json.loads(contents)
+
+
+def save_ids(ids):
+    with open('ids.json', 'w') as jsonfile:
+        jsonfile.write(json.dumps(ids))
+        jsonfile.close()
+
+
+
+
+def get_kills(threshold, duration, exclude, corp_id, modifiers, user_agent, ids):
     cache = cache_ids()
     headers = {'User-Agent': 'Killmail Bot, Maintainer: ' + user_agent,
                'accept-encoding': 'gzip'}
-    request_url = ('https://zkillboard.com/api/corporationID/%s/pastSeconds/%s/kills/' + modifiers) % (corp_id, duration)
+    request_url = ('https://zkillboard.com/api/corporationID/%s/pastSeconds/%s/kills/' + modifiers) % (
+    corp_id, duration)
     request = requests.get(request_url, headers=headers)
     jsonkills = request.json()
-    worthkills = filter((lambda m: m['zkb']['totalValue'] > float(threshold)), jsonkills)
+    newkills = filter((lambda m: m['killID'] not in ids), jsonkills)
+    worthkills = filter((lambda m: m['zkb']['totalValue'] > float(threshold)), newkills)
 
     kills = []
 
     for kill in worthkills:
+        ids.append(kill['killID'])
         # Get killer and number of other involved people
         killer = ''
         involved = 0
@@ -120,6 +146,6 @@ def cache_ids():
             cache[curr[0]] = curr[2]
     return cache
 
-
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-run()
+if __name__ == '__main__':
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    run()
