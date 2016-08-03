@@ -1,0 +1,8 @@
+{
+  "name": "slack-kill-bot",
+  "version": "0.0.1",
+  "dependencies": {
+    "request": "^2.74.0",
+    "slackbots": "^0.5.1"
+  }
+}

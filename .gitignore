@@ -1,2 +1,4 @@
 api.conf
 .idea
+node/node_modules
+node/.idea
